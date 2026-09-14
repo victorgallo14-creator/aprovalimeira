@@ -2,245 +2,222 @@ import streamlit as st
 from supabase import create_client, Client
 import random
 import json
-from datetime import datetime, timezone
 import time
+from datetime import datetime, timezone
 
 # ==============================================================================
-# 1. CONFIGURAÇÃO DE ALTA PERFORMANCE E UI PREMIUM
+# CONFIGURAÇÃO CORE E PERFORMANCE
 # ==============================================================================
-st.set_page_config(page_title="Plataforma de Avaliação Cognitiva", layout="wide", page_icon="🧠", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Aprova Limeira | Avaliação Cognitiva", layout="wide", page_icon="🏛️")
 
 @st.cache_resource
-def init_connection():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+def init_connection() -> Client:
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 try:
-    supabase: Client = init_connection()
-except Exception as e:
-    st.error("Configuração de segurança pendente. Insira SUPABASE_URL e SUPABASE_KEY nos Secrets.")
+    supabase = init_connection()
+except Exception:
+    st.error("Credenciais do Supabase ausentes nos Secrets.")
     st.stop()
 
-# ==============================================================================
-# 2. MOTOR COGNITIVO E ACESSO A DADOS
-# ==============================================================================
-class MotorCognitivo:
-    def __init__(self, db_client):
-        self.db = db_client
-
-    def buscar_questoes(self, limite: int):
-        try:
-            res = self.db.table("banco_questoes_geral").select("*").execute()
-            dados = res.data if hasattr(res, 'data') else res
-            if not dados: return []
-            random.shuffle(dados)
-            return dados[:limite]
-        except Exception:
-            return []
-
-    def registrar_auditoria(self, usuario: str, nota_bruta: float, nota_ponderada: float, acertos: int, erros: int, relatorio: list):
-        dados = {
-            "usuario": usuario,
-            "nota": nota_bruta,
-            "acertos": acertos,
-            "erros": erros,
-            "relatorio_descritivo": relatorio,
-            "data_execucao": datetime.now(timezone.utc).isoformat()
-        }
-        try:
-            self.db.table("resultados_simulados").insert(dados).execute()
-        except Exception as e:
-            st.error(f"Falha na sincronização de dados: {e}")
+# Cache de alta performance com tempo de expiração (TTL) para evitar chamadas redundantes
+@st.cache_data(ttl=3600)
+def carregar_banco_questoes(cargo_alvo: str):
+    res = supabase.table("banco_questoes_geral").select("*").eq("cargo", cargo_alvo).execute()
+    return res.data if hasattr(res, 'data') else res
 
 # ==============================================================================
-# 3. ESTILIZAÇÃO AVANÇADA (CSS)
+# CSS PREMIUM E DESIGN SYSTEM
 # ==============================================================================
 st.markdown("""
 <style>
-    /* Tipografia e Fundo */
-    .stApp { background-color: #f8fafc; }
+    .stApp { background-color: #f8fafc; font-family: 'Inter', sans-serif; }
     
-    /* Cabeçalhos Premium */
-    .hero-container { background: linear-gradient(135deg, #0f172a 0%, #3b82f6 100%); padding: 40px; border-radius: 16px; color: white; margin-bottom: 40px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
-    .hero-title { font-size: 2.8rem; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 10px; }
-    .hero-subtitle { font-size: 1.1rem; color: #e2e8f0; font-weight: 300; }
+    .login-container { max-width: 450px; margin: 10vh auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    .brand-title { font-size: 2.5rem; font-weight: 900; color: #0f172a; text-align: center; letter-spacing: -1px; }
+    .brand-subtitle { font-size: 1rem; color: #64748b; text-align: center; margin-bottom: 30px; }
     
-    /* Cards de Questões */
-    .question-card { background: white; padding: 35px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); transition: transform 0.2s ease; }
-    .question-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-    .question-number { font-size: 0.9rem; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 15px; display: block; }
-    .question-text { font-size: 1.2rem; color: #1e293b; font-weight: 600; line-height: 1.6; margin-bottom: 25px; }
+    .nav-header { background: #0f172a; padding: 20px 40px; color: white; border-radius: 12px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
     
-    /* Relatórios Descritivos Textuais */
-    .report-card { background: white; padding: 30px; border-radius: 12px; margin-bottom: 25px; border-left: 6px solid; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .question-card { background: white; padding: 35px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px; transition: 0.2s; }
+    .question-card:hover { border-color: #cbd5e1; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+    .question-text { font-size: 1.15rem; color: #1e293b; font-weight: 600; line-height: 1.6; margin-bottom: 20px; }
+    
+    .report-card { background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid; }
     .report-success { border-color: #10b981; }
     .report-error { border-color: #ef4444; }
-    .report-content { font-size: 1.1rem; line-height: 1.8; color: #334155; text-align: justify; margin-top: 15px; }
-    
-    /* Métricas */
-    .metric-container { background: white; padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; }
-    .metric-value { font-size: 2.5rem; font-weight: 800; color: #0f172a; }
-    .metric-label { font-size: 0.9rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+    .report-text { font-size: 1.05rem; line-height: 1.7; color: #334155; text-align: justify; margin-top: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 4. GERENCIAMENTO DE ESTADO
+# CONTROLE DE SESSÃO
 # ==============================================================================
-if 'motor' not in st.session_state: st.session_state.motor = MotorCognitivo(supabase)
-if 'fase_app' not in st.session_state: st.session_state.fase_app = 'dashboard'
-if 'start_time' not in st.session_state: st.session_state.start_time = None
+if 'usuario' not in st.session_state: st.session_state.usuario = None
+if 'rota' not in st.session_state: st.session_state.rota = 'login'
 
 # ==============================================================================
-# 5. FASE 1: DASHBOARD E CONFIGURAÇÃO
+# ÁREA DE IDENTIFICAÇÃO E REGISTRO
 # ==============================================================================
-if st.session_state.fase_app == 'dashboard':
-    st.markdown("""
-    <div class="hero-container">
-        <div class="hero-title">Sistema de Avaliação Cognitiva</div>
-        <div class="hero-subtitle">Plataforma algorítmica de alto rendimento. Análise pedagógica descritiva e ponderação de metacognição em tempo real.</div>
+if st.session_state.usuario is None:
+    st.markdown("<div class='login-container'>", unsafe_allow_html=True)
+    st.markdown("<div class='brand-title'>Aprova Limeira</div>", unsafe_allow_html=True)
+    st.markdown("<div class='brand-subtitle'>Plataforma de Alta Performance</div>", unsafe_allow_html=True)
+    
+    aba_login, aba_registro = st.tabs(["Acesso", "Novo Cadastro"])
+    
+    with aba_login:
+        email_login = st.text_input("E-mail de acesso")
+        if st.button("Entrar", use_container_width=True, type="primary"):
+            res = supabase.table("candidatos").select("*").eq("email", email_login.strip()).execute()
+            dados = res.data if hasattr(res, 'data') else res
+            if dados:
+                st.session_state.usuario = dados[0]
+                st.session_state.rota = 'dashboard'
+                st.rerun()
+            else:
+                st.error("Candidato não localizado. Verifique o e-mail ou realize o cadastro.")
+                
+    with aba_registro:
+        nome_reg = st.text_input("Nome completo")
+        email_reg = st.text_input("E-mail corporativo ou pessoal")
+        cargo_reg = st.selectbox("Cargo pleiteado", ["Diretor de Escola", "Agente de Desenvolvimento Educacional (ADE)"])
+        
+        if st.button("Criar Perfil", use_container_width=True):
+            if nome_reg and email_reg:
+                try:
+                    novo_user = {"nome": nome_reg, "email": email_reg.strip(), "cargo_alvo": cargo_reg}
+                    res = supabase.table("candidatos").insert(novo_user).execute()
+                    st.success("Perfil criado! Faça login na aba lateral.")
+                except Exception:
+                    st.error("E-mail já cadastrado no sistema.")
+            else:
+                st.warning("Preencha todos os campos obrigatórios.")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
+
+# ==============================================================================
+# MENU DE NAVEGAÇÃO SUPERIOR
+# ==============================================================================
+usuario = st.session_state.usuario
+st.markdown(f"""
+<div class='nav-header'>
+    <div>
+        <h2 style='margin:0; font-size: 1.5rem;'>Aprova Limeira</h2>
+        <span style='color: #94a3b8;'>Módulo: {usuario['cargo_alvo']}</span>
     </div>
-    """, unsafe_allow_html=True)
+    <div style='text-align: right;'>
+        <span style='font-weight: 600;'>{usuario['nome']}</span><br>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        st.markdown("<div style='background: white; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='color: #0f172a; text-align: center; margin-bottom: 30px;'>Parâmetros da Sessão de Estudo</h3>", unsafe_allow_html=True)
+# ==============================================================================
+# DASHBOARD E CONFIGURAÇÃO DA PROVA
+# ==============================================================================
+if st.session_state.rota == 'dashboard':
+    st.markdown("### Centro de Comando Operacional")
+    
+    with st.container():
+        st.markdown("<div style='background: white; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
+        st.write("Configure sua próxima bateria de exercícios. O algoritmo selecionará questões estratégicas do banco de dados focadas exclusivamente no seu edital.")
         
-        qtd_questoes = st.slider("Extensão do simulado:", min_value=5, max_value=50, value=10, step=5)
+        qtd_questoes = st.slider("Carga da avaliação (questões):", min_value=5, max_value=40, value=15, step=5)
         
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🚀 INICIAR SESSÃO DE ALTA PERFORMANCE", type="primary", use_container_width=True):
-            with st.spinner("O motor cognitivo está extraindo e embaralhando o banco de dados..."):
-                time.sleep(1) # Simulação de carregamento complexo para efeito premium
-                questoes = st.session_state.motor.buscar_questoes(qtd_questoes)
-                if questoes:
-                    st.session_state.prova_atual = questoes
-                    st.session_state.fase_app = 'execucao'
-                    st.session_state.start_time = time.time()
-                    st.rerun()
-                else:
-                    st.error("O banco de dados de questões está vazio. Acesse o painel SQL do Supabase para inserir o acervo.")
+        if st.button("🚀 Iniciar Ciclo de Avaliação", type="primary"):
+            banco_filtrado = carregar_banco_questoes(usuario['cargo_alvo'])
+            if not banco_filtrado:
+                st.error(f"O banco de questões para {usuario['cargo_alvo']} está em fase de estruturação. Insira dados no Supabase para prosseguir.")
+            else:
+                random.shuffle(banco_filtrado)
+                st.session_state.prova_atual = banco_filtrado[:qtd_questoes]
+                st.session_state.rota = 'execucao'
+                st.session_state.inicio_prova = time.time()
+                st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 6. FASE 2: EXECUÇÃO DA AVALIAÇÃO (COM METACOGNIÇÃO)
+# EXECUÇÃO DA AVALIAÇÃO
 # ==============================================================================
-elif st.session_state.fase_app == 'execucao':
-    st.markdown("<h2 style='color: #0f172a; margin-bottom: 30px;'>Avaliação em Progresso</h2>", unsafe_allow_html=True)
+elif st.session_state.rota == 'execucao':
+    st.markdown("### Avaliação Cognitiva em Andamento")
+    respostas_usuario = {}
     
-    respostas = {}
-    confiancas = {}
-    
-    with st.form("form_avaliacao"):
+    with st.form("form_simulado"):
         for i, q in enumerate(st.session_state.prova_atual):
             st.markdown(f"<div class='question-card'>", unsafe_allow_html=True)
-            st.markdown(f"<span class='question-number'>Questão Analítica {i+1}</span>", unsafe_allow_html=True)
-            st.markdown(f"<div class='question-text'>{q.get('enunciado', 'Enunciado não localizado.')}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='color: #3b82f6; font-weight: 700; margin-bottom: 10px;'>QUESTÃO {i+1}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='question-text'>{q['enunciado']}</div>", unsafe_allow_html=True)
             
-            alts = q.get("alternativas", [])
-            if isinstance(alts, str):
-                try: alts = json.loads(alts)
-                except: alts = [alts]
-                
-            col_resp, col_conf = st.columns([2, 1])
-            with col_resp:
-                respostas[str(i)] = st.radio("Selecione sua diretriz:", alts, index=None, key=f"r_{i}", label_visibility="collapsed")
-            with col_conf:
-                st.markdown("<span style='font-size: 0.9rem; color: #64748b; font-weight: 600;'>Grau de Certeza Técnica:</span>", unsafe_allow_html=True)
-                confiancas[str(i)] = st.select_slider("", options=["Dúvida/Chute", "Raciocínio Lógico", "Certeza Absoluta"], value="Raciocínio Lógico", key=f"c_{i}", label_visibility="collapsed")
-            
+            alts = q["alternativas"] if isinstance(q["alternativas"], list) else json.loads(q["alternativas"])
+            respostas_usuario[str(i)] = st.radio("Alternativas:", alts, index=None, key=f"q_{i}", label_visibility="collapsed")
             st.markdown("</div>", unsafe_allow_html=True)
             
-        if st.form_submit_button("PROCESSAR DADOS E GERAR DIAGNÓSTICO", type="primary", use_container_width=True):
-            tempo_gasto = round((time.time() - st.session_state.start_time) / 60, 2)
+        if st.form_submit_button("Finalizar e Processar Diagnóstico", type="primary", use_container_width=True):
             acertos, erros = 0, 0
-            pontuacao_ponderada = 0
             relatorio = []
             
             for i, q in enumerate(st.session_state.prova_atual):
-                alts = q.get("alternativas", [])
-                if isinstance(alts, str):
-                    try: alts = json.loads(alts)
-                    except: alts = [alts]
-                    
-                gab_idx = q.get("gabarito", 0)
-                resp_user = respostas[str(i)]
-                conf_user = confiancas[str(i)]
+                alts = q["alternativas"] if isinstance(q["alternativas"], list) else json.loads(q["alternativas"])
+                gab_idx = q["gabarito"]
+                resposta_selecionada = respostas_usuario[str(i)]
                 
-                is_correct = False
-                if resp_user and resp_user in alts:
-                    is_correct = (alts.index(resp_user) == gab_idx)
+                acertou = False
+                if resposta_selecionada and resposta_selecionada in alts:
+                    acertou = (alts.index(resposta_selecionada) == gab_idx)
                 
-                if is_correct:
-                    acertos += 1
-                    if conf_user == "Certeza Absoluta": pontuacao_ponderada += 1.2
-                    elif conf_user == "Raciocínio Lógico": pontuacao_ponderada += 1.0
-                    else: pontuacao_ponderada += 0.8
-                    
-                    texto_parecer = f"A verificação dos registros cognitivos demonstra que a linha de raciocínio estabelecida para solucionar esta situação-problema atingiu a precisão esperada. A fundamentação selecionada, que aponta a resposta como sendo '{alts[gab_idx]}', converge inteiramente com as diretrizes técnicas e teóricas da base curricular adotada. O grau de certeza informado reflete uma ancoragem sólida do conhecimento, sugerindo que os conceitos estruturais pertinentes a esta disciplina já foram devidamente apropriados e processados pelo candidato."
-                else:
-                    erros += 1
-                    if conf_user == "Certeza Absoluta": pontuacao_ponderada -= 0.5
-                    elif conf_user == "Raciocínio Lógico": pontuacao_ponderada -= 0.2
-                    
-                    texto_parecer = f"O diagnóstico desta etapa revela uma dissintonia entre a construção analítica elaborada e os pressupostos validados oficialmente pelo gabarito. A interpretação registrada inclinou-se para a concepção de que a resposta adequada seria '{resp_user if resp_user else 'Opção deixada em branco'}', o que caracteriza um desvio de interpretação ou uma fragilidade conceitual frente ao objeto de estudo. Uma revisão aprofundada faz-se necessária para realinhar a percepção do candidato à resolução técnica correta, que estabelece categoricamente que a alternativa exata é '{alts[gab_idx]}'. Este apontamento foi registrado no histórico evolutivo para garantir a repescagem pedagógica deste conceito."
+                if acertou: acertos += 1
+                else: erros += 1
+                
+                # Pareceres em prosa descritiva contínua, sem uso de marcadores ou itens
+                texto_parecer = f"A verificação dos registros cognitivos demonstra que a linha de raciocínio estabelecida para solucionar esta situação-problema atingiu a precisão esperada no contexto de {usuario['cargo_alvo']}. A fundamentação selecionada, que aponta a resposta como sendo '{alts[gab_idx]}', converge inteiramente com as diretrizes técnicas e teóricas da base curricular adotada, sugerindo que os conceitos estruturais pertinentes a esta disciplina já foram devidamente apropriados." if acertou else f"O diagnóstico desta etapa revela uma dissintonia entre a construção analítica elaborada e os pressupostos validados oficialmente pelo gabarito do cargo. A interpretação registrada inclinou-se para a concepção de que a resposta adequada seria '{resposta_selecionada if resposta_selecionada else 'Opção não assinalada'}', o que caracteriza um desvio frente ao objeto de estudo. Uma revisão aprofundada faz-se necessária para realinhar a percepção do candidato à resolução técnica correta, que estabelece categoricamente que a alternativa exata é '{alts[gab_idx]}'."
                 
                 relatorio.append({
                     "questao": i + 1,
-                    "acertou": is_correct,
-                    "certeza_informada": conf_user,
-                    "texto_parecer": texto_parecer
+                    "acertou": acertou,
+                    "texto": texto_parecer
                 })
             
-            nota_bruta = (acertos / len(st.session_state.prova_atual)) * 100
-            st.session_state.resultado = {
-                "nota": nota_bruta,
-                "nota_ponderada": pontuacao_ponderada,
+            nota_final = (acertos / len(st.session_state.prova_atual)) * 100
+            
+            dados_resultado = {
+                "candidato_id": usuario["id"],
+                "nota": nota_final,
                 "acertos": acertos,
                 "erros": erros,
-                "tempo": tempo_gasto,
-                "relatorio": relatorio
+                "relatorio_descritivo": relatorio
             }
+            supabase.table("resultados_simulados").insert(dados_resultado).execute()
             
-            st.session_state.motor.registrar_auditoria("Candidato_Premium", nota_bruta, pontuacao_ponderada, acertos, erros, relatorio)
-            st.session_state.fase_app = 'relatorio'
+            st.session_state.resultado = dados_resultado
+            st.session_state.rota = 'relatorio'
             st.rerun()
 
 # ==============================================================================
-# 7. FASE 3: AUDITORIA E RELATÓRIO PEDAGÓGICO DESCRITIVO
+# AUDITORIA E DIAGNÓSTICO
 # ==============================================================================
-elif st.session_state.fase_app == 'relatorio':
+elif st.session_state.rota == 'relatorio':
     res = st.session_state.resultado
     
-    st.markdown("<h2 style='color: #0f172a; margin-bottom: 20px;'>Auditoria de Desempenho e Diagnóstico</h2>", unsafe_allow_html=True)
+    st.markdown("### Diagnóstico de Competências")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Aproveitamento Global", f"{res['nota']:.1f}%")
+    c2.metric("Decisões Corretas", res['acertos'])
+    c3.metric("Revisões Necessárias", res['erros'])
     
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['nota']:.1f}%</div><div class='metric-label'>Precisão Bruta</div></div>", unsafe_allow_html=True)
-    with c2: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['acertos']}</div><div class='metric-label'>Acertos Exatos</div></div>", unsafe_allow_html=True)
-    with c3: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['erros']}</div><div class='metric-label'>Intervenções Necessárias</div></div>", unsafe_allow_html=True)
-    with c4: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['tempo']}m</div><div class='metric-label'>Fadiga Cognitiva (Tempo)</div></div>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin: 30px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
     
-    st.markdown("<h3 style='margin-top: 40px; color: #1e293b;'>Pareceres Pedagógicos Descritivos</h3>", unsafe_allow_html=True)
-    st.write("Abaixo consta a avaliação qualitativa em prosa contínua do seu rendimento por item, assegurando a compreensão integral das habilidades exigidas e das lacunas evidenciadas.")
-    
-    for det in res['relatorio']:
-        css_class = "report-success" if det['acertou'] else "report-error"
-        status_title = "Domínio Evidenciado" if det['acertou'] else "Revisão Crítica Recomendada"
-        icon = "✅" if det['acertou'] else "❌"
+    for det in res['relatorio_descritivo']:
+        classe_css = "report-success" if det['acertou'] else "report-error"
+        icone = "✅" if det['acertou'] else "❌"
         
         st.markdown(f"""
-        <div class='report-card {css_class}'>
-            <div style='display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;'>
-                <span style='font-size: 1.2rem; font-weight: 700; color: #0f172a;'>{icon} Análise da Questão {det['questao']} — {status_title}</span>
-                <span style='font-size: 0.85rem; background-color: #f1f5f9; padding: 5px 12px; border-radius: 20px; color: #475569; font-weight: 600;'>Fator Declarado: {det['certeza_informada']}</span>
-            </div>
-            <div class='report-content'>{det['texto_parecer']}</div>
+        <div class='report-card {classe_css}'>
+            <div style='font-weight: 700; color: #0f172a; font-size: 1.1rem;'>{icone} Resolução da Questão {det['questao']}</div>
+            <div class='report-text'>{det['texto']}</div>
         </div>
         """, unsafe_allow_html=True)
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄 RETORNAR AO CENTRO DE CONTROLE PARA NOVO CICLO", type="primary"):
-        st.session_state.fase_app = 'dashboard'
+        
+    if st.button("Retornar ao Centro de Comando", type="primary"):
+        st.session_state.rota = 'dashboard'
         st.rerun()
