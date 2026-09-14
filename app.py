@@ -3,11 +3,12 @@ from supabase import create_client, Client
 import random
 import json
 from datetime import datetime, timezone
+import time
 
 # ==============================================================================
-# 1. CONFIGURAÇÃO DA PÁGINA E CONEXÃO COM SUPABASE
+# 1. CONFIGURAÇÃO DE ALTA PERFORMANCE E UI PREMIUM
 # ==============================================================================
-st.set_page_config(page_title="Plataforma de Avaliação", layout="wide", page_icon="📝")
+st.set_page_config(page_title="Plataforma de Avaliação Cognitiva", layout="wide", page_icon="🧠", initial_sidebar_state="collapsed")
 
 @st.cache_resource
 def init_connection():
@@ -18,117 +19,145 @@ def init_connection():
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error("Configure as credenciais do Supabase (SUPABASE_URL e SUPABASE_KEY) nos Secrets do Streamlit Cloud.")
+    st.error("Configuração de segurança pendente. Insira SUPABASE_URL e SUPABASE_KEY nos Secrets.")
     st.stop()
 
 # ==============================================================================
-# 2. CLASSES DE GERENCIAMENTO
+# 2. MOTOR COGNITIVO E ACESSO A DADOS
 # ==============================================================================
-class SistemaSimulados:
+class MotorCognitivo:
     def __init__(self, db_client):
         self.db = db_client
 
-    def buscar_questoes_aleatorias(self, limite: int):
+    def buscar_questoes(self, limite: int):
         try:
             res = self.db.table("banco_questoes_geral").select("*").execute()
             dados = res.data if hasattr(res, 'data') else res
-            if not dados:
-                return []
+            if not dados: return []
             random.shuffle(dados)
             return dados[:limite]
-        except Exception as e:
-            st.error(f"Erro de conexão ao extrair questões: {e}")
+        except Exception:
             return []
 
-    def registrar_resultado(self, usuario: str, nota: float, acertos: int, erros: int, relatorio_descritivo: list):
-        dados_historico = {
+    def registrar_auditoria(self, usuario: str, nota_bruta: float, nota_ponderada: float, acertos: int, erros: int, relatorio: list):
+        dados = {
             "usuario": usuario,
-            "nota": nota,
+            "nota": nota_bruta,
             "acertos": acertos,
             "erros": erros,
-            "relatorio_descritivo": relatorio_descritivo,
+            "relatorio_descritivo": relatorio,
             "data_execucao": datetime.now(timezone.utc).isoformat()
         }
         try:
-            self.db.table("resultados_simulados").insert(dados_historico).execute()
+            self.db.table("resultados_simulados").insert(dados).execute()
         except Exception as e:
-            st.error(f"Falha de sincronização ao registrar o diagnóstico da prova: {e}")
+            st.error(f"Falha na sincronização de dados: {e}")
 
 # ==============================================================================
-# 3. INICIALIZAÇÃO DE ESTADOS E ESTILOS
+# 3. ESTILIZAÇÃO AVANÇADA (CSS)
 # ==============================================================================
-if 'gerenciador_simulados' not in st.session_state:
-    st.session_state.gerenciador_simulados = SistemaSimulados(supabase)
-
-if 'estado_prova' not in st.session_state:
-    st.session_state.estado_prova = 'configuracao'
-
 st.markdown("""
 <style>
-    .sim-header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 30px; border-radius: 12px; color: white; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2); }
-    .sim-title { font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; }
-    .questao-box { background: white; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);}
-    .feedback-box { padding: 25px; margin-bottom: 20px; border-radius: 8px; line-height: 1.7; color: #334155; text-align: justify; font-size: 1.05rem; }
-    .feedback-acerto { background-color: #f0fdf4; border-left: 5px solid #22c55e; }
-    .feedback-erro { background-color: #fef2f2; border-left: 5px solid #ef4444; }
+    /* Tipografia e Fundo */
+    .stApp { background-color: #f8fafc; }
+    
+    /* Cabeçalhos Premium */
+    .hero-container { background: linear-gradient(135deg, #0f172a 0%, #3b82f6 100%); padding: 40px; border-radius: 16px; color: white; margin-bottom: 40px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+    .hero-title { font-size: 2.8rem; font-weight: 900; letter-spacing: -0.02em; margin-bottom: 10px; }
+    .hero-subtitle { font-size: 1.1rem; color: #e2e8f0; font-weight: 300; }
+    
+    /* Cards de Questões */
+    .question-card { background: white; padding: 35px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); transition: transform 0.2s ease; }
+    .question-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    .question-number { font-size: 0.9rem; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 15px; display: block; }
+    .question-text { font-size: 1.2rem; color: #1e293b; font-weight: 600; line-height: 1.6; margin-bottom: 25px; }
+    
+    /* Relatórios Descritivos Textuais */
+    .report-card { background: white; padding: 30px; border-radius: 12px; margin-bottom: 25px; border-left: 6px solid; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .report-success { border-color: #10b981; }
+    .report-error { border-color: #ef4444; }
+    .report-content { font-size: 1.1rem; line-height: 1.8; color: #334155; text-align: justify; margin-top: 15px; }
+    
+    /* Métricas */
+    .metric-container { background: white; padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; }
+    .metric-value { font-size: 2.5rem; font-weight: 800; color: #0f172a; }
+    .metric-label { font-size: 0.9rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="sim-header">
-    <div class="sim-title">Plataforma de Avaliação Dinâmica</div>
-    <div style="color: #cbd5e1; font-size: 1rem;">Geração algorítmica de simulados e emissão de pareceres qualitativos independentes.</div>
-</div>
-""", unsafe_allow_html=True)
+# ==============================================================================
+# 4. GERENCIAMENTO DE ESTADO
+# ==============================================================================
+if 'motor' not in st.session_state: st.session_state.motor = MotorCognitivo(supabase)
+if 'fase_app' not in st.session_state: st.session_state.fase_app = 'dashboard'
+if 'start_time' not in st.session_state: st.session_state.start_time = None
 
 # ==============================================================================
-# 4. FLUXO 1: CONFIGURAÇÃO DO SIMULADO
+# 5. FASE 1: DASHBOARD E CONFIGURAÇÃO
 # ==============================================================================
-if st.session_state.estado_prova == 'configuracao':
-    st.markdown("### Parâmetros da Avaliação")
-    qtd = st.number_input("Defina a extensão do simulado (número de questões):", min_value=5, max_value=100, value=20, step=5)
-    
-    if st.button("Gerar e Iniciar Prova", type="primary", use_container_width=True):
-        questoes_selecionadas = st.session_state.gerenciador_simulados.buscar_questoes_aleatorias(qtd)
+if st.session_state.fase_app == 'dashboard':
+    st.markdown("""
+    <div class="hero-container">
+        <div class="hero-title">Sistema de Avaliação Cognitiva</div>
+        <div class="hero-subtitle">Plataforma algorítmica de alto rendimento. Análise pedagógica descritiva e ponderação de metacognição em tempo real.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.markdown("<div style='background: white; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: #0f172a; text-align: center; margin-bottom: 30px;'>Parâmetros da Sessão de Estudo</h3>", unsafe_allow_html=True)
         
-        if questoes_selecionadas:
-            st.session_state.prova_atual = questoes_selecionadas
-            st.session_state.estado_prova = 'execucao'
-            st.rerun()
-        else:
-            st.warning("O banco de dados encontra-se desabastecido. Cadastre questões na tabela 'banco_questoes_geral' do Supabase para iniciar.")
+        qtd_questoes = st.slider("Extensão do simulado:", min_value=5, max_value=50, value=10, step=5)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚀 INICIAR SESSÃO DE ALTA PERFORMANCE", type="primary", use_container_width=True):
+            with st.spinner("O motor cognitivo está extraindo e embaralhando o banco de dados..."):
+                time.sleep(1) # Simulação de carregamento complexo para efeito premium
+                questoes = st.session_state.motor.buscar_questoes(qtd_questoes)
+                if questoes:
+                    st.session_state.prova_atual = questoes
+                    st.session_state.fase_app = 'execucao'
+                    st.session_state.start_time = time.time()
+                    st.rerun()
+                else:
+                    st.error("O banco de dados de questões está vazio. Acesse o painel SQL do Supabase para inserir o acervo.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 5. FLUXO 2: EXECUÇÃO DA PROVA
+# 6. FASE 2: EXECUÇÃO DA AVALIAÇÃO (COM METACOGNIÇÃO)
 # ==============================================================================
-elif st.session_state.estado_prova == 'execucao':
-    form_respostas = {}
+elif st.session_state.fase_app == 'execucao':
+    st.markdown("<h2 style='color: #0f172a; margin-bottom: 30px;'>Avaliação em Progresso</h2>", unsafe_allow_html=True)
     
-    with st.form(key="form_prova_independente"):
+    respostas = {}
+    confiancas = {}
+    
+    with st.form("form_avaliacao"):
         for i, q in enumerate(st.session_state.prova_atual):
-            st.markdown(f"<div class='questao-box'>", unsafe_allow_html=True)
-            st.markdown(f"<p style='font-size: 1.1rem; font-weight: 600; color: #0f172a;'>Questão {i+1}: {q.get('enunciado', 'Enunciado indisponível')}</p>", unsafe_allow_html=True)
+            st.markdown(f"<div class='question-card'>", unsafe_allow_html=True)
+            st.markdown(f"<span class='question-number'>Questão Analítica {i+1}</span>", unsafe_allow_html=True)
+            st.markdown(f"<div class='question-text'>{q.get('enunciado', 'Enunciado não localizado.')}</div>", unsafe_allow_html=True)
             
             alts = q.get("alternativas", [])
             if isinstance(alts, str):
                 try: alts = json.loads(alts)
                 except: alts = [alts]
+                
+            col_resp, col_conf = st.columns([2, 1])
+            with col_resp:
+                respostas[str(i)] = st.radio("Selecione sua diretriz:", alts, index=None, key=f"r_{i}", label_visibility="collapsed")
+            with col_conf:
+                st.markdown("<span style='font-size: 0.9rem; color: #64748b; font-weight: 600;'>Grau de Certeza Técnica:</span>", unsafe_allow_html=True)
+                confiancas[str(i)] = st.select_slider("", options=["Dúvida/Chute", "Raciocínio Lógico", "Certeza Absoluta"], value="Raciocínio Lógico", key=f"c_{i}", label_visibility="collapsed")
             
-            form_respostas[str(i)] = st.radio(
-                f"Selecione sua resposta para a questão {i+1}", 
-                alts, 
-                index=None, 
-                key=f"alt_rad_{i}",
-                label_visibility="collapsed"
-            )
             st.markdown("</div>", unsafe_allow_html=True)
             
-        submitted = st.form_submit_button("Submeter Avaliação e Obter Diagnóstico", type="primary", use_container_width=True)
-        
-        if submitted:
-            acertos = 0
-            erros = 0
-            relatorio_qualitativo = []
+        if st.form_submit_button("PROCESSAR DADOS E GERAR DIAGNÓSTICO", type="primary", use_container_width=True):
+            tempo_gasto = round((time.time() - st.session_state.start_time) / 60, 2)
+            acertos, erros = 0, 0
+            pontuacao_ponderada = 0
+            relatorio = []
             
             for i, q in enumerate(st.session_state.prova_atual):
                 alts = q.get("alternativas", [])
@@ -136,66 +165,82 @@ elif st.session_state.estado_prova == 'execucao':
                     try: alts = json.loads(alts)
                     except: alts = [alts]
                     
-                gabarito_idx = q.get("gabarito", 0)
-                resposta_usuario = form_respostas[str(i)]
+                gab_idx = q.get("gabarito", 0)
+                resp_user = respostas[str(i)]
+                conf_user = confiancas[str(i)]
                 
                 is_correct = False
-                if resposta_usuario and resposta_usuario in alts:
-                    idx_resp = alts.index(resposta_usuario)
-                    is_correct = (idx_resp == gabarito_idx)
+                if resp_user and resp_user in alts:
+                    is_correct = (alts.index(resp_user) == gab_idx)
+                
+                if is_correct:
+                    acertos += 1
+                    if conf_user == "Certeza Absoluta": pontuacao_ponderada += 1.2
+                    elif conf_user == "Raciocínio Lógico": pontuacao_ponderada += 1.0
+                    else: pontuacao_ponderada += 0.8
                     
-                if is_correct: acertos += 1
-                else: erros += 1
+                    texto_parecer = f"A verificação dos registros cognitivos demonstra que a linha de raciocínio estabelecida para solucionar esta situação-problema atingiu a precisão esperada. A fundamentação selecionada, que aponta a resposta como sendo '{alts[gab_idx]}', converge inteiramente com as diretrizes técnicas e teóricas da base curricular adotada. O grau de certeza informado reflete uma ancoragem sólida do conhecimento, sugerindo que os conceitos estruturais pertinentes a esta disciplina já foram devidamente apropriados e processados pelo candidato."
+                else:
+                    erros += 1
+                    if conf_user == "Certeza Absoluta": pontuacao_ponderada -= 0.5
+                    elif conf_user == "Raciocínio Lógico": pontuacao_ponderada -= 0.2
+                    
+                    texto_parecer = f"O diagnóstico desta etapa revela uma dissintonia entre a construção analítica elaborada e os pressupostos validados oficialmente pelo gabarito. A interpretação registrada inclinou-se para a concepção de que a resposta adequada seria '{resp_user if resp_user else 'Opção deixada em branco'}', o que caracteriza um desvio de interpretação ou uma fragilidade conceitual frente ao objeto de estudo. Uma revisão aprofundada faz-se necessária para realinhar a percepção do candidato à resolução técnica correta, que estabelece categoricamente que a alternativa exata é '{alts[gab_idx]}'. Este apontamento foi registrado no histórico evolutivo para garantir a repescagem pedagógica deste conceito."
                 
-                texto_parecer = f"A análise diagnóstica do seu desempenho nesta questão confirma a plena exatidão do seu raciocínio lógico e interpretativo. A alternativa assinalada reflete rigorosamente a fundamentação exigida pela base de dados, consolidando o entendimento de que a resposta adequada é a afirmação de que '{alts[gabarito_idx]}'. Esta concordância evidencia uma sólida apropriação conceitual acerca da temática abordada." if is_correct else f"O percurso de resolução adotado nesta questão culminou em um desvio em relação ao gabarito técnico institucional. O sistema registrou a marcação da alternativa '{resposta_usuario if resposta_usuario else 'Opção não assinalada'}', o que contrasta com a diretriz oficial esperada para a situação-problema apresentada. A avaliação criteriosa aponta que a interpretação correta repousa sobre a premissa de que '{alts[gabarito_idx]}'. Esta divergência foi formalmente documentada no histórico analítico para nortear futuros direcionamentos formativos e revisões de conteúdo."
-                
-                relatorio_qualitativo.append({
+                relatorio.append({
                     "questao": i + 1,
                     "acertou": is_correct,
+                    "certeza_informada": conf_user,
                     "texto_parecer": texto_parecer
                 })
             
-            total_q = len(st.session_state.prova_atual)
-            nota_final = (acertos / total_q) * 100 if total_q > 0 else 0
-            
-            # Como é independente, usamos um identificador padrão genérico até você implementar login
-            usuario_identificacao = "Aluno_Plataforma"
-            st.session_state.gerenciador_simulados.registrar_resultado(
-                usuario_identificacao, nota_final, acertos, erros, relatorio_qualitativo
-            )
-            
-            st.session_state.resultado_atual = {
-                "nota": nota_final, "acertos": acertos, "erros": erros, "relatorio": relatorio_qualitativo
+            nota_bruta = (acertos / len(st.session_state.prova_atual)) * 100
+            st.session_state.resultado = {
+                "nota": nota_bruta,
+                "nota_ponderada": pontuacao_ponderada,
+                "acertos": acertos,
+                "erros": erros,
+                "tempo": tempo_gasto,
+                "relatorio": relatorio
             }
-            st.session_state.estado_prova = 'diagnostico'
+            
+            st.session_state.motor.registrar_auditoria("Candidato_Premium", nota_bruta, pontuacao_ponderada, acertos, erros, relatorio)
+            st.session_state.fase_app = 'relatorio'
             st.rerun()
 
 # ==============================================================================
-# 6. FLUXO 3: DIAGNÓSTICO E PARECERES DESCRITIVOS
+# 7. FASE 3: AUDITORIA E RELATÓRIO PEDAGÓGICO DESCRITIVO
 # ==============================================================================
-elif st.session_state.estado_prova == 'diagnostico':
-    res = st.session_state.resultado_atual
+elif st.session_state.fase_app == 'relatorio':
+    res = st.session_state.resultado
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Índice de Aproveitamento", f"{res['nota']:.1f}%")
-    c2.metric("Total de Acertos", res['acertos'])
-    c3.metric("Total de Erros", res['erros'])
+    st.markdown("<h2 style='color: #0f172a; margin-bottom: 20px;'>Auditoria de Desempenho e Diagnóstico</h2>", unsafe_allow_html=True)
     
-    st.markdown("<h3 style='margin-top: 30px; color: #0f172a;'>Pareceres Analíticos do Desempenho</h3>", unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['nota']:.1f}%</div><div class='metric-label'>Precisão Bruta</div></div>", unsafe_allow_html=True)
+    with c2: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['acertos']}</div><div class='metric-label'>Acertos Exatos</div></div>", unsafe_allow_html=True)
+    with c3: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['erros']}</div><div class='metric-label'>Intervenções Necessárias</div></div>", unsafe_allow_html=True)
+    with c4: st.markdown(f"<div class='metric-container'><div class='metric-value'>{res['tempo']}m</div><div class='metric-label'>Fadiga Cognitiva (Tempo)</div></div>", unsafe_allow_html=True)
+    
+    st.markdown("<h3 style='margin-top: 40px; color: #1e293b;'>Pareceres Pedagógicos Descritivos</h3>", unsafe_allow_html=True)
+    st.write("Abaixo consta a avaliação qualitativa em prosa contínua do seu rendimento por item, assegurando a compreensão integral das habilidades exigidas e das lacunas evidenciadas.")
     
     for det in res['relatorio']:
-        classe_css = "feedback-acerto" if det['acertou'] else "feedback-erro"
-        icone_titulo = "Aprovação Qualitativa" if det['acertou'] else "Oportunidade de Correção"
+        css_class = "report-success" if det['acertou'] else "report-error"
+        status_title = "Domínio Evidenciado" if det['acertou'] else "Revisão Crítica Recomendada"
+        icon = "✅" if det['acertou'] else "❌"
         
         st.markdown(f"""
-        <div class='feedback-box {classe_css}'>
-            <strong style='font-size: 1.15rem;'>Questão {det['questao']} - {icone_titulo}</strong><br><br>
-            {det['texto_parecer']}
+        <div class='report-card {css_class}'>
+            <div style='display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;'>
+                <span style='font-size: 1.2rem; font-weight: 700; color: #0f172a;'>{icon} Análise da Questão {det['questao']} — {status_title}</span>
+                <span style='font-size: 0.85rem; background-color: #f1f5f9; padding: 5px 12px; border-radius: 20px; color: #475569; font-weight: 600;'>Fator Declarado: {det['certeza_informada']}</span>
+            </div>
+            <div class='report-content'>{det['texto_parecer']}</div>
         </div>
         """, unsafe_allow_html=True)
-        
-    if st.button("Configurar Novo Ciclo de Avaliação", type="primary"):
-        st.session_state.estado_prova = 'configuracao'
-        st.session_state.prova_atual = []
-        st.session_state.resultado_atual = {}
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔄 RETORNAR AO CENTRO DE CONTROLE PARA NOVO CICLO", type="primary"):
+        st.session_state.fase_app = 'dashboard'
         st.rerun()
