@@ -20,7 +20,6 @@ except Exception:
     st.error("Credenciais do Supabase ausentes nos Secrets.")
     st.stop()
 
-# Cache de alta performance com tempo de expiração (TTL) para evitar chamadas redundantes
 @st.cache_data(ttl=3600)
 def carregar_banco_questoes(cargo_alvo: str):
     res = supabase.table("banco_questoes_geral").select("*").eq("cargo", cargo_alvo).execute()
@@ -39,9 +38,29 @@ st.markdown("""
     
     .nav-header { background: #0f172a; padding: 20px 40px; color: white; border-radius: 12px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
     
-    .question-card { background: white; padding: 35px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px; transition: 0.2s; }
-    .question-card:hover { border-color: #cbd5e1; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
-    .question-text { font-size: 1.15rem; color: #1e293b; font-weight: 600; line-height: 1.6; margin-bottom: 20px; }
+    .question-card { background: white; padding: 40px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 25px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+    .question-text { font-size: 1.4rem; color: #1e293b; font-weight: 600; line-height: 1.7; margin-bottom: 30px; text-align: justify; }
+    
+    /* Estilização para forçar os botões de alternativa a terem quebra de texto e alinhamento à esquerda */
+    div[data-testid="stButton"] > button {
+        height: auto;
+        padding: 15px 20px;
+        text-align: left;
+        white-space: normal;
+        word-wrap: break-word;
+        font-size: 1.05rem;
+        border: 1px solid #cbd5e1;
+        background-color: white;
+        color: #334155;
+        border-radius: 8px;
+        transition: all 0.2s ease-in-out;
+        display: block;
+    }
+    div[data-testid="stButton"] > button:hover {
+        border-color: #3b82f6;
+        background-color: #f0f9ff;
+        color: #0f172a;
+    }
     
     .report-card { background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid; }
     .report-success { border-color: #10b981; }
@@ -55,6 +74,8 @@ st.markdown("""
 # ==============================================================================
 if 'usuario' not in st.session_state: st.session_state.usuario = None
 if 'rota' not in st.session_state: st.session_state.rota = 'login'
+if 'questao_atual_idx' not in st.session_state: st.session_state.questao_atual_idx = 0
+if 'respostas_usuario' not in st.session_state: st.session_state.respostas_usuario = {}
 
 # ==============================================================================
 # ÁREA DE IDENTIFICAÇÃO E REGISTRO
@@ -87,7 +108,7 @@ if st.session_state.usuario is None:
             if nome_reg and email_reg:
                 try:
                     novo_user = {"nome": nome_reg, "email": email_reg.strip(), "cargo_alvo": cargo_reg}
-                    res = supabase.table("candidatos").insert(novo_user).execute()
+                    supabase.table("candidatos").insert(novo_user).execute()
                     st.success("Perfil criado! Faça login na aba lateral.")
                 except Exception:
                     st.error("E-mail já cadastrado no sistema.")
@@ -131,67 +152,77 @@ if st.session_state.rota == 'dashboard':
             else:
                 random.shuffle(banco_filtrado)
                 st.session_state.prova_atual = banco_filtrado[:qtd_questoes]
+                st.session_state.questao_atual_idx = 0
+                st.session_state.respostas_usuario = {}
                 st.session_state.rota = 'execucao'
-                st.session_state.inicio_prova = time.time()
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# EXECUÇÃO DA AVALIAÇÃO
+# EXECUÇÃO DA AVALIAÇÃO (MODO FOCO: 1 QUESTÃO POR VEZ)
 # ==============================================================================
 elif st.session_state.rota == 'execucao':
-    st.markdown("### Avaliação Cognitiva em Andamento")
-    respostas_usuario = {}
+    idx = st.session_state.questao_atual_idx
+    total_questoes = len(st.session_state.prova_atual)
+    q = st.session_state.prova_atual[idx]
     
-    with st.form("form_simulado"):
-        for i, q in enumerate(st.session_state.prova_atual):
-            st.markdown(f"<div class='question-card'>", unsafe_allow_html=True)
-            st.markdown(f"<div style='color: #3b82f6; font-weight: 700; margin-bottom: 10px;'>QUESTÃO {i+1}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='question-text'>{q['enunciado']}</div>", unsafe_allow_html=True)
+    st.markdown(f"### Avaliação Cognitiva em Andamento")
+    st.progress((idx) / total_questoes)
+    st.caption(f"Questão {idx + 1} de {total_questoes}")
+    
+    st.markdown(f"""
+    <div class='question-card'>
+        <div class='question-text'>{q['enunciado']}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    alts = q["alternativas"] if isinstance(q["alternativas"], list) else json.loads(q["alternativas"])
+    
+    for alt_idx, alt_text in enumerate(alts):
+        if st.button(alt_text, key=f"alt_{idx}_{alt_idx}", use_container_width=True):
+            st.session_state.respostas_usuario[str(idx)] = alt_text
             
-            alts = q["alternativas"] if isinstance(q["alternativas"], list) else json.loads(q["alternativas"])
-            respostas_usuario[str(i)] = st.radio("Alternativas:", alts, index=None, key=f"q_{i}", label_visibility="collapsed")
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        if st.form_submit_button("Finalizar e Processar Diagnóstico", type="primary", use_container_width=True):
-            acertos, erros = 0, 0
-            relatorio = []
-            
-            for i, q in enumerate(st.session_state.prova_atual):
-                alts = q["alternativas"] if isinstance(q["alternativas"], list) else json.loads(q["alternativas"])
-                gab_idx = q["gabarito"]
-                resposta_selecionada = respostas_usuario[str(i)]
+            if idx + 1 < total_questoes:
+                st.session_state.questao_atual_idx += 1
+                st.rerun()
+            else:
+                acertos, erros = 0, 0
+                relatorio = []
                 
-                acertou = False
-                if resposta_selecionada and resposta_selecionada in alts:
-                    acertou = (alts.index(resposta_selecionada) == gab_idx)
+                for i_fim, q_fim in enumerate(st.session_state.prova_atual):
+                    alts_fim = q_fim["alternativas"] if isinstance(q_fim["alternativas"], list) else json.loads(q_fim["alternativas"])
+                    gab_idx = q_fim["gabarito"]
+                    resposta_selecionada = st.session_state.respostas_usuario.get(str(i_fim))
+                    
+                    acertou = False
+                    if resposta_selecionada and resposta_selecionada in alts_fim:
+                        acertou = (alts_fim.index(resposta_selecionada) == gab_idx)
+                    
+                    if acertou: acertos += 1
+                    else: erros += 1
+                    
+                    texto_parecer = f"A verificação dos registros cognitivos demonstra que a linha de raciocínio estabelecida para solucionar esta situação-problema atingiu a precisão esperada no contexto de {usuario['cargo_alvo']}. A fundamentação selecionada, que aponta a resposta como sendo '{alts_fim[gab_idx]}', converge inteiramente com as diretrizes técnicas e teóricas da base curricular adotada, sugerindo que os conceitos estruturais pertinentes a esta disciplina já foram devidamente apropriados." if acertou else f"O diagnóstico desta etapa revela uma dissintonia entre a construção analítica elaborada e os pressupostos validados oficialmente pelo gabarito do cargo. A interpretação registrada inclinou-se para a concepção de que a resposta adequada seria '{resposta_selecionada if resposta_selecionada else 'Opção não assinalada'}', o que caracteriza um desvio frente ao objeto de estudo. Uma revisão aprofundada faz-se necessária para realinhar a percepção do candidato à resolução técnica correta, que estabelece categoricamente que a alternativa exata é '{alts_fim[gab_idx]}'."
+                    
+                    relatorio.append({
+                        "questao": i_fim + 1,
+                        "acertou": acertou,
+                        "texto": texto_parecer
+                    })
                 
-                if acertou: acertos += 1
-                else: erros += 1
+                nota_final = (acertos / total_questoes) * 100
                 
-                # Pareceres em prosa descritiva contínua, sem uso de marcadores ou itens
-                texto_parecer = f"A verificação dos registros cognitivos demonstra que a linha de raciocínio estabelecida para solucionar esta situação-problema atingiu a precisão esperada no contexto de {usuario['cargo_alvo']}. A fundamentação selecionada, que aponta a resposta como sendo '{alts[gab_idx]}', converge inteiramente com as diretrizes técnicas e teóricas da base curricular adotada, sugerindo que os conceitos estruturais pertinentes a esta disciplina já foram devidamente apropriados." if acertou else f"O diagnóstico desta etapa revela uma dissintonia entre a construção analítica elaborada e os pressupostos validados oficialmente pelo gabarito do cargo. A interpretação registrada inclinou-se para a concepção de que a resposta adequada seria '{resposta_selecionada if resposta_selecionada else 'Opção não assinalada'}', o que caracteriza um desvio frente ao objeto de estudo. Uma revisão aprofundada faz-se necessária para realinhar a percepção do candidato à resolução técnica correta, que estabelece categoricamente que a alternativa exata é '{alts[gab_idx]}'."
+                dados_resultado = {
+                    "candidato_id": usuario["id"],
+                    "nota": nota_final,
+                    "acertos": acertos,
+                    "erros": erros,
+                    "relatorio_descritivo": relatorio
+                }
+                supabase.table("resultados_simulados").insert(dados_resultado).execute()
                 
-                relatorio.append({
-                    "questao": i + 1,
-                    "acertou": acertou,
-                    "texto": texto_parecer
-                })
-            
-            nota_final = (acertos / len(st.session_state.prova_atual)) * 100
-            
-            dados_resultado = {
-                "candidato_id": usuario["id"],
-                "nota": nota_final,
-                "acertos": acertos,
-                "erros": erros,
-                "relatorio_descritivo": relatorio
-            }
-            supabase.table("resultados_simulados").insert(dados_resultado).execute()
-            
-            st.session_state.resultado = dados_resultado
-            st.session_state.rota = 'relatorio'
-            st.rerun()
+                st.session_state.resultado = dados_resultado
+                st.session_state.rota = 'relatorio'
+                st.rerun()
 
 # ==============================================================================
 # AUDITORIA E DIAGNÓSTICO
